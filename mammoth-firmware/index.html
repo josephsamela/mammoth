@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+        <title>M A M M O T H</title>
+    </head>
+    <body>
+        <div class="container">
+            <div class="banner">
+███    ███      █████      ███    ███     ███    ███      ██████      ████████     ██   ██ 
+████  ████     ██   ██     ████  ████     ████  ████     ██    ██        ██        ██   ██ 
+██ ████ ██     ███████     ██ ████ ██     ██ ████ ██     ██    ██        ██        ███████ 
+██  ██  ██     ██   ██     ██  ██  ██     ██  ██  ██     ██    ██        ██        ██   ██ 
+██      ██     ██   ██     ██      ██     ██      ██      ██████         ██        ██   ██ 
+            </div>
+            <div class="indicators">
+                <div class="indicator">
+                    <p class="indicator-title">CONNECTED: <strong id="connect">🔴</strong></p>
+                </div>
+                <div class="indicator">
+                    <p class="indicator-title">LX: <strong id="lx">0.00</strong></p>
+                </div>
+                <div class="indicator">
+                    <p class="indicator-title">LY: <strong id="ly">0.00</strong></p>
+                </div>
+                <div class="indicator">
+                    <p class="indicator-title">RX: <strong id="rx">0.00</strong></p>
+                </div>
+                <div class="indicator">
+                    <p class="indicator-title">RX: <strong id="ry">0.00</strong></p>
+                </div>
+            </div>
+            <div id="terminal"></div>
+        </div>
+    </body>
+</html>
+
+<style>
+    body {
+        background-color: black;
+        color: lightblue;
+        text-align: center;
+        font-family: monospace;
+    }
+    .container {
+        margin: auto;
+        max-width: 800px;
+    }
+    .banner {
+        white-space: pre;
+    }
+    .indicators {
+        display: flex;
+    }
+    .indicator {
+        text-align: left;
+        width: 20%;
+        margin: 1em;
+        padding: 1em; 
+        border: 2px solid lightblue;
+    }
+    p {
+        margin: 0px;
+        text-align: center;
+    }
+    #terminal {
+        margin: 1em;
+        padding: 1em; 
+        border: 2px solid lightblue;
+        height: 400px;
+        text-align: left;
+
+        font-family: monospace;
+        white-space: pre;
+
+        overflow-y: scroll;
+    }
+</style>
+
+<script>
+    function printTerminal(line) {
+        t = document.getElementById("terminal")
+        time = new Date().toUTCString().split(" ")[4]; // Get current time, hh:mm:ss
+        t.insertAdjacentText("beforeend", time + " " + line) // Append text to terminal
+        t.scrollTop = t.scrollHeight // Scroll terminal to bottom
+    }
+
+    websocket = new WebSocket("ws://192.168.1.34:81/");
+    websocket.onmessage = function(event) {
+
+        eventType = event.data.split("|$|")[0]
+        eventMessage = event.data.split("|$|")[1]
+
+        if (eventType == "log") {
+            printTerminal(eventMessage);
+        }
+        else if (eventType == "connect") {
+            eventMessage = eventMessage.replace("\n","")
+            if (eventMessage == "connected") {
+                document.getElementById("connect").innerText = "🟢";
+            } 
+            else {
+                document.getElementById("connect").innerText = "🔴";
+            }
+        } 
+        else if (eventType == "lx") {
+            document.getElementById("lx").innerText = eventMessage;
+        }
+        else if (eventType == "ly") {
+            document.getElementById("ly").innerText = eventMessage;
+        }
+        else if (eventType == "rx") {
+            document.getElementById("rx").innerText = eventMessage;
+        }
+        else if (eventType == "ry") {
+            document.getElementById("ry").innerText = eventMessage;
+        }
+        else {
+            console.log(event.data)
+        }
+
+    };
+</script>
