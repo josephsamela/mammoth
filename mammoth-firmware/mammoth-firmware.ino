@@ -5,6 +5,9 @@
 const char* ssid = "#########";
 const char* password = "#########";
 
+#define LED_READY  2
+int battery = 0;
+
 WebServer server(80);
 WebSocketsServer websocket = WebSocketsServer(81);
 
@@ -18,28 +21,40 @@ String site = R"(
     <body>
         <div class="container">
             <div class="banner">
-███    ███      █████      ███    ███     ███    ███      ██████      ████████     ██   ██ 
-████  ████     ██   ██     ████  ████     ████  ████     ██    ██        ██        ██   ██ 
-██ ████ ██     ███████     ██ ████ ██     ██ ████ ██     ██    ██        ██        ███████ 
-██  ██  ██     ██   ██     ██  ██  ██     ██  ██  ██     ██    ██        ██        ██   ██ 
-██      ██     ██   ██     ██      ██     ██      ██      ██████         ██        ██   ██ 
+███    ███      █████      ███    ███     ███    ███      ██████      ████████     ██   ██
+████  ████     ██   ██     ████  ████     ████  ████     ██    ██        ██        ██   ██
+██ ████ ██     ███████     ██ ████ ██     ██ ████ ██     ██    ██        ██        ███████
+██  ██  ██     ██   ██     ██  ██  ██     ██  ██  ██     ██    ██        ██        ██   ██
+██      ██     ██   ██     ██      ██     ██      ██      ██████         ██        ██   ██
             </div>
-            <div class="indicators">
-                <div class="indicator">
-                    <p class="indicator-title">CONNECTED: <strong id="connect">🔴</strong></p>
-                </div>
-                <div class="indicator">
-                    <p class="indicator-title">LX: <strong id="lx">0.00</strong></p>
-                </div>
-                <div class="indicator">
-                    <p class="indicator-title">LY: <strong id="ly">0.00</strong></p>
-                </div>
-                <div class="indicator">
-                    <p class="indicator-title">RX: <strong id="rx">0.00</strong></p>
-                </div>
-                <div class="indicator">
-                    <p class="indicator-title">RX: <strong id="ry">0.00</strong></p>
-                </div>
+            <div class="controller">
+                <h3>CONTROLLER</h3>
+                <table>
+                    <tr><td>PS</td><td id="ps">⚪</td></tr>
+                    <tr><td>START</td><td id="start">⚪</td></tr>
+                    <tr><td>SELECT</td><td id="select">⚪</td></tr>
+                        <tr><td> </td><td> </td></tr>
+                    <tr><td>LX</td><td id="lx">0</td></tr>
+                    <tr><td>LY</td><td id="ly">0</td></tr>
+                    <tr><td>RX</td><td id="rx">0</td></tr>
+                    <tr><td>RY</td><td id="ry">0</td></tr>
+                        <tr><td> </td><td> </td></tr>
+                    <tr><td>✖</td><td id="cross">⚪</td></tr>
+                    <tr><td>■</td><td id="square">⚪</td></tr>
+                    <tr><td>▲</td><td id="triangle">⚪</td></tr>
+                    <tr><td>●</td><td id="circle">⚪</td></tr>
+                        <tr><td> </td><td> </td></tr>
+                    <tr><td>UP</td><td id="up">⚪</td></tr>
+                    <tr><td>RIGHT</td><td id="right">⚪</td></tr>
+                    <tr><td>DOWN</td><td id="down">⚪</td></tr>
+                    <tr><td>LEFT</td><td id="left">⚪</td></tr>
+                        <tr><td> </td><td> </td></tr>
+                    <tr><td>L1</td><td id="l1">⚪</td></tr>
+                    <tr><td>L2</td><td id="l2">0</td></tr>
+                    <tr><td>R1</td><td id="r1">⚪</td></tr>
+                    <tr><td>R2</td><td id="r2">0</td></tr>
+                        <tr><td> </td><td> </td></tr>
+                </table>
             </div>
             <div id="terminal"></div>
         </div>
@@ -56,34 +71,42 @@ String site = R"(
     .container {
         margin: auto;
         max-width: 800px;
+        height: 650px;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        -webkit-transform: translate(-50%, -50%);
+        transform: translate(-50%, -50%);
     }
     .banner {
         white-space: pre;
     }
-    .indicators {
-        display: flex;
-    }
-    .indicator {
+    .controller {
+        float: left;
         text-align: left;
-        width: 20%;
-        margin: 1em;
+        margin: 1em 1em 1em 0px;
         padding: 1em; 
         border: 2px solid lightblue;
+        height: 500px;
     }
-    p {
-        margin: 0px;
-        text-align: center;
+    table {
+        width: 100%;
+    }
+    h3 {
+        margin: 0px 0px 1em 0px;
+    }
+    td:nth-child(2) {
+        text-align: right;
+        height: 13px;
     }
     #terminal {
-        margin: 1em;
+        margin: 1em 0px 1em 1em;
         padding: 1em; 
         border: 2px solid lightblue;
-        height: 400px;
+        height: 500px;
         text-align: left;
-
         font-family: monospace;
         white-space: pre;
-
         overflow-y: scroll;
     }
 </style>
@@ -96,58 +119,69 @@ String site = R"(
         t.scrollTop = t.scrollHeight // Scroll terminal to bottom
     }
 
-    websocket = new WebSocket("ws://192.168.1.34:81/");
-    websocket.onmessage = function(event) {
+    function setButtonState(ref, state) {
+        if (state == "true") {
+            document.getElementById(ref).innerText = "🟢";
+        }
+        else if (state == "false") {
+            document.getElementById(ref).innerText = "🔴";
+        }
+        else {
+            document.getElementById(ref).innerText = state;
+        }
+    }
 
-        eventType = event.data.split("|$|")[0]
-        eventMessage = event.data.split("|$|")[1]
+    websocket = new WebSocket("ws://192.168.1.34:81/");
+
+    websocket.onmessage = function(event) {
+        eventType = event.data.split("|")[0]
+        eventMessage = event.data.split("|")[1]
 
         if (eventType == "log") {
             printTerminal(eventMessage);
         }
-        else if (eventType == "connect") {
-            eventMessage = eventMessage.replace("\n","")
+        if (eventType == "connect") { 
             if (eventMessage == "connected") {
-                document.getElementById("connect").innerText = "🟢";
-            } 
-            else {
-                document.getElementById("connect").innerText = "🔴";
+                icon  = "🔴"
             }
-        } 
-        else if (eventType == "lx") {
-            document.getElementById("lx").innerText = eventMessage;
-        }
-        else if (eventType == "ly") {
-            document.getElementById("ly").innerText = eventMessage;
-        }
-        else if (eventType == "rx") {
-            document.getElementById("rx").innerText = eventMessage;
-        }
-        else if (eventType == "ry") {
-            document.getElementById("ry").innerText = eventMessage;
+            if (eventMessage == "disconnected") {
+                icon = "⚪"
+            }
+            ["ps","start","select","cross","square","triangle","circle","up","down","left","right","l1","r1"].forEach(ref => {
+                document.getElementById(ref).innerText = icon;
+            });
         }
         else {
-            console.log(event.data)
+            button = eventType;
+            state = eventMessage;
+            setButtonState(button, state);
         }
-
     };
 </script>
 )";
 
 void logger(String eventType, String eventMessage) {
-    String output = eventType + "|$|" + eventMessage + "\n";
+    String output = eventType + "|" + eventMessage;
     Serial.print(output);
     websocket.broadcastTXT(output);
 }
 
 void onPS3ControllerConnect() {
+     String batterystatus;
+     battery = Ps3.data.status.battery;
+     if( battery == ps3_status_battery_charging )      batterystatus = "CHARGING";
+     else if( battery == ps3_status_battery_full )     batterystatus = "FULL";
+     else if( battery == ps3_status_battery_high )     batterystatus = "HIGH";
+     else if( battery == ps3_status_battery_low)       batterystatus = "LOW";
+     else if( battery == ps3_status_battery_dying )    batterystatus = "DYING";
+     else if( battery == ps3_status_battery_shutdown ) batterystatus = "SHUTDOWN";
     logger("connect", "connected");
-    logger("log", "PS3 controller connected.");
+    logger("log", "PS3 controller connected. Battery "+batterystatus+".\n");
 }
 
 void onPS3ControllerDisconnect() {
     logger("connect", "disconnected");
-    logger("log", "PS3 controller disconnected.");
+    logger("log", "PS3 controller disconnected.\n");
 }
 
 void onPS3ControllerInput() {
@@ -162,17 +196,79 @@ void onPS3ControllerInput() {
         logger("ry", String(Ps3.data.analog.stick.ry));
    }
   
+  // CONTROL BUTTONS
+    // FACE BUTTONS
+  if( Ps3.event.button_down.start )
+    logger("start", "true");
+  if(Ps3.event.button_up.start)
+    logger("start", "false");
+  if( Ps3.event.button_down.select )
+    logger("select", "true");
+  if(Ps3.event.button_up.select)
+    logger("select", "false");
+  if( Ps3.event.button_down.ps )
+    logger("ps", "true");
+  if(Ps3.event.button_up.ps)
+    logger("ps", "false");
+
+  // FACE BUTTONS
   if( Ps3.event.button_down.cross )
-    logger("log", "✖ Pressed the cross button");
+    logger("cross", "true");
+  if(Ps3.event.button_up.cross)
+    logger("cross", "false");
   if( Ps3.event.button_down.square )
-    logger("log", "■ Pressed the square button");
+    logger("square", "true");
+  if(Ps3.event.button_up.square)
+    logger("square", "false");
   if( Ps3.event.button_down.triangle )
-    logger("log", "▲ Pressed the triangle button");
+    logger("triangle", "true");
+  if(Ps3.event.button_up.triangle)
+    logger("triangle", "false");
   if( Ps3.event.button_down.circle )
-    logger("log", "● Pressed the circle button");
+    logger("circle", "true");
+  if(Ps3.event.button_up.circle)
+    logger("circle", "false");
+
+  // DIRECTION BUTTONS
+  if( Ps3.event.button_down.down )
+    logger("down", "true");
+  if(Ps3.event.button_up.down)
+    logger("down", "false");
+  if( Ps3.event.button_down.up )
+    logger("up", "true");
+  if(Ps3.event.button_up.up)
+    logger("up", "false");
+  if( Ps3.event.button_down.left )
+    logger("left", "true");
+  if(Ps3.event.button_up.left)
+    logger("left", "false");
+  if( Ps3.event.button_down.right )
+    logger("right", "true");
+  if(Ps3.event.button_up.right)
+    logger("right", "false");
+
+  // SHOULDER BUTTONS
+  if( Ps3.event.button_down.l1 )
+    logger("l1", "true");
+  if(Ps3.event.button_up.l1)
+    logger("l1", "false");
+  if( Ps3.event.button_down.r1 )
+    logger("r1", "true");
+  if(Ps3.event.button_up.r1)
+    logger("r1", "false");
+
+  // TRIGGERS
+  if( abs(Ps3.event.analog_changed.button.l2) ){
+    logger("l2", String(Ps3.data.analog.button.l2));
+  }
+  if( abs(Ps3.event.analog_changed.button.r2) ){
+    logger("r2", String(Ps3.data.analog.button.r2));
+  }
 }
 
 void setup(void) {
+    pinMode(LED_READY,OUTPUT);
+    
     // Initialize serial
     Serial.begin(115200);
 
@@ -186,6 +282,8 @@ void setup(void) {
     Serial.print("\nConnected to " + String(ssid) + "(");
     Serial.print(WiFi.localIP());
     Serial.println(")");
+
+    digitalWrite(LED_READY,HIGH);
 
     // Initialize PS3 controller
     Ps3.attach(onPS3ControllerInput);
